@@ -18,16 +18,6 @@ ThreadPool::~ThreadPool() {
   }
 }
 
-void ThreadPool::EnqueueJob(std::function<void()> job) {
-  if (stop_all) {
-    throw ::std::runtime_error("ThreadPool is stopped");
-  }
-  {
-    std::lock_guard<std::mutex> lock(m_job_q_);
-    jobs_.push(std::move(job));
-  }
-  cv_job_q_.notify_one();
-}
 void ThreadPool::WorkerThread() {
   while (true) {
     std::unique_lock<std::mutex> lock(m_job_q_);

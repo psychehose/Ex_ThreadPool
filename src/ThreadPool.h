@@ -1,6 +1,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <functional>
+#include <future>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -11,7 +12,22 @@ class ThreadPool {
   ThreadPool(size_t num_threads);
   ~ThreadPool();
 
-  void EnqueueJob(std::function<void()> job);
+  template <class F, class... Args>
+  std::future<typename std::invoke_result<F, Args...>::type> EnqueueJob(
+      F f, Args... args) {
+    if (stop_all) {
+      throw std::runtime_error("ThreadPool is stopped");
+    }
+
+    using return_type = typename std::invoke_result<F, Args...>::type;
+    auto job = std::make_shared<std::packaged_task<return_type()>>(
+        std::bind(f, args...));
+    std::future<return_type> job_result_future = job->get_future();
+    jobs_.push([job]() { (*job)(); });
+    cv_job_q_.notify_one();
+
+    return job_result_future;
+  }
 
  private:
   size_t num_threads_;
