@@ -2,7 +2,7 @@
 
 ThreadPool::ThreadPool(size_t num_threads)
     : num_threads_(num_threads), stop_all(false) {
-  worker_threads_.reserve(num_threads);
+  worker_threads_.reserve(num_threads_);
 
   for (size_t i = 0; i < num_threads; ++i) {
     worker_threads_.emplace_back([this]() { this->WorkerThread(); });
@@ -18,7 +18,16 @@ ThreadPool::~ThreadPool() {
   }
 }
 
-void ThreadPool::EnqueueJob(std::function<void()> job) {}
+void ThreadPool::EnqueueJob(std::function<void()> job) {
+  if (stop_all) {
+    throw ::std::runtime_error("ThreadPool is stopped");
+  }
+  {
+    std::lock_guard<std::mutex> lock(m_job_q_);
+    jobs_.push(std::move(job));
+  }
+  cv_job_q_.notify_one();
+}
 void ThreadPool::WorkerThread() {
   while (true) {
     std::unique_lock<std::mutex> lock(m_job_q_);
